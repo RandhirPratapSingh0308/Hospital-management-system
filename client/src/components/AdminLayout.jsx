@@ -34,6 +34,7 @@ const AdminLayout = () => {
   // Admin only menu items
   if (user?.role === 'admin') {
     menuItems.push({ path: '/admin/users', icon: <UserPlus size={20} />, label: 'Manage Users' });
+    menuItems.push({ path: '/admin/fee-structure', icon: <BarChart3 size={20} />, label: 'Fee Structure' });
   }
 
   return (

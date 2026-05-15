@@ -26,11 +26,20 @@ const calculateIPDBill = (patient) => {
   };
 };
 
+const saveAndPopulate = async (patient) => {
+  await patient.save();
+  return await Patient.findById(patient._id)
+    .populate('consultantDoctor')
+    .populate('ipdDetails.doctorVisits.doctor')
+    .populate('receivedBy', 'name');
+};
+
 const registerOPD = async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.body.consultantDoctor);
     const patient = await Patient.create({
       ...req.body,
+      receivedBy: req.user._id,
       opdFee: doctor.opdFee,
       isIPD: false
     });
@@ -43,18 +52,25 @@ const registerOPD = async (req, res) => {
 const admitIPD = async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.body.consultantDoctor);
-    const patient = await Patient.create({
+    const patientData = {
       ...req.body,
+      receivedBy: req.user._id,
       isIPD: true,
       status: 'Admitted',
       ipdDetails: {
         admissionDate: new Date(),
         roomType: req.body.roomType,
-        roomRate: req.body.roomRate, // Passed from frontend based on roomType
-        advancePaid: req.body.advancePaid,
+        roomRate: req.body.roomRate,
+        advancePaid: req.body.advancePaid || 0,
         doctorVisits: [{ doctor: doctor._id, count: 1, feePerVisit: doctor.ipdVisitFee }]
       }
-    });
+    };
+
+    const patient = new Patient(patientData);
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing.toObject(), ...billing };
+    
+    await patient.save();
     res.status(201).json(patient);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -78,8 +94,8 @@ const updateStay = async (req, res) => {
     const billing = calculateIPDBill(patient);
     patient.billing = { ...patient.billing, ...billing };
     
-    await patient.save();
-    res.json(patient);
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -101,8 +117,8 @@ const addLabTest = async (req, res) => {
     const billing = calculateIPDBill(patient);
     patient.billing = { ...patient.billing, ...billing };
     
-    await patient.save();
-    res.json(patient);
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -190,7 +206,8 @@ const registerDirectLab = async (req, res) => {
           grandTotal: amount,
           totalPaid: amount,
           dueAmount: 0
-        }
+        },
+        receivedBy: req.user._id
       });
     }
 
@@ -254,8 +271,133 @@ const addBillItem = async (req, res) => {
     const billing = calculateIPDBill(patient);
     patient.billing = { ...patient.billing, ...billing };
 
-    await patient.save();
-    res.json(patient);
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const updateBillItem = async (req, res) => {
+  const { id, itemId } = req.params;
+  const { type, unit, amount } = req.body;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const item = patient.ipdDetails.billItems.id(itemId);
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+
+    if (type) item.type = type;
+    if (unit !== undefined) item.unit = unit;
+    if (amount !== undefined) item.amount = amount;
+    item.total = item.unit * item.amount;
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const deleteBillItem = async (req, res) => {
+  const { id, itemId } = req.params;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    patient.ipdDetails.billItems.pull(itemId);
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const updateLabTest = async (req, res) => {
+  const { id, labId } = req.params;
+  const { testName, price } = req.body;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const test = patient.ipdDetails.labTests.id(labId);
+    if (!test) return res.status(404).json({ message: 'Test not found' });
+
+    if (testName) test.testName = testName;
+    if (price !== undefined) test.price = price;
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const deleteLabTest = async (req, res) => {
+  const { id, labId } = req.params;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    patient.ipdDetails.labTests.pull(labId);
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const updateDoctorVisit = async (req, res) => {
+  const { id, visitId } = req.params;
+  const { count, feePerVisit } = req.body;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const visit = patient.ipdDetails.doctorVisits.id(visitId);
+    if (!visit) return res.status(404).json({ message: 'Visit not found' });
+
+    if (count !== undefined) visit.count = count;
+    if (feePerVisit !== undefined) visit.feePerVisit = feePerVisit;
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const deleteDoctorVisit = async (req, res) => {
+  const { id, visitId } = req.params;
+  try {
+    const patient = await Patient.findById(id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    patient.ipdDetails.doctorVisits.pull(visitId);
+
+    const billing = calculateIPDBill(patient);
+    patient.billing = { ...patient.billing, ...billing };
+
+    const updatedPatient = await saveAndPopulate(patient);
+    res.json(updatedPatient);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -295,6 +437,12 @@ module.exports = {
   getNextUHID,
   getPatientByUHID,
   addBillItem,
+  updateBillItem,
+  deleteBillItem,
+  updateLabTest,
+  deleteLabTest,
+  updateDoctorVisit,
+  deleteDoctorVisit,
   getDischargedPatients,
   reAdmitPatient
 };

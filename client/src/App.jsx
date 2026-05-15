@@ -9,6 +9,7 @@ import LabServices from './pages/LabServices';
 import MISReports from './pages/MISReports';
 import SubAdminManagement from './pages/SubAdminManagement';
 import PatientHistory from './pages/PatientHistory';
+import FeeStructure from './pages/FeeStructure';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
             <Route path="records" element={<PatientHistory />} />
             <Route path="mis" element={<MISReports />} />
             <Route path="users" element={<SubAdminManagement />} />
+            <Route path="fee-structure" element={<FeeStructure />} />
           </Route>
         </Routes>
       </div>

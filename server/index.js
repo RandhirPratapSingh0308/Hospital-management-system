@@ -20,12 +20,14 @@ const authRoutes = require('./routes/authRoutes'); // Need to split out
 const patientRoutes = require('./routes/patientRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
 const labRoutes = require('./routes/labRoutes');
+const feeRoutes = require('./routes/feeRoutes');
 
 app.use('/api/auth', authRoutes);
 
 app.use('/api/patients', patientRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/lab', labRoutes);
+app.use('/api/fees', feeRoutes);
 
 app.get('/', (req, res) => res.send('HMS API Running'));
 

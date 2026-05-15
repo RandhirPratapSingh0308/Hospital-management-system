@@ -15,6 +15,7 @@ const PatientSchema = new mongoose.Schema({
   pincode: { type: String },
 
   consultantDoctor: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
+  receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   opdFee: { type: Number },
   registrationDate: { type: Date, default: Date.now },
 

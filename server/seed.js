@@ -24,10 +24,10 @@ const seed = async () => {
 
   const admin = await User.create({
     username: 'admin',
-    password: 'password123',
+    password: 'password@123',
     name: 'Admin User',
     role: 'admin'
-  });
+  }); 
 
   const subAdmin = await User.create({
     username: 'reception',

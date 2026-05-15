@@ -10,15 +10,12 @@ const IPDRegistration = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const ROOM_RATES = {
-    'General Ward': 1000,
-    'Private Room': 3000,
-    'ICU': 8000
-  };
+  const [roomRates, setRoomRates] = useState({});
 
   useEffect(() => {
     fetchDoctors();
     fetchNextUHID();
+    fetchRoomRates();
   }, []);
 
   const fetchDoctors = async () => {
@@ -43,12 +40,27 @@ const IPDRegistration = () => {
     }
   };
 
+  const fetchRoomRates = async () => {
+    try {
+      const { data } = await axios.get('http://localhost:5000/api/fees', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` }
+      });
+      const rates = {};
+      data.filter(f => f.category === 'Room').forEach(f => {
+        rates[f.name] = f.rate;
+      });
+      setRoomRates(rates);
+    } catch (err) {
+      console.error('Error fetching room rates:', err);
+    }
+  };
+
   const selectedRoomType = watch('roomType');
   useEffect(() => {
     if (selectedRoomType) {
-      setValue('roomRate', ROOM_RATES[selectedRoomType]);
+      setValue('roomRate', roomRates[selectedRoomType]);
     }
-  }, [selectedRoomType, setValue]);
+  }, [selectedRoomType, roomRates, setValue]);
 
   const onSubmit = async (formData) => {
     setLoading(true);
@@ -92,7 +104,7 @@ const IPDRegistration = () => {
             <label className="text-xs font-black uppercase text-muted-foreground tracking-widest pl-1">Room Type</label>
             <select {...register('roomType', { required: true })} className="w-full px-5 py-3 border-2 rounded-2xl bg-background border-secondary focus:border-primary transition-all appearance-none cursor-pointer">
               <option value="">Select Room</option>
-              {Object.keys(ROOM_RATES).map(r => <option key={r} value={r}>{r}</option>)}
+              {Object.keys(roomRates).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="space-y-1">
